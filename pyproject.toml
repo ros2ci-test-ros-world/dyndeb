@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dyndeb"
+version = "0.1.0"
+description = "Debian packaging for a ROS package, generated from its package.xml at build time"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+# catkin_pkg, and rosdep for anything that resolves keys. They are not
+# listed as requirements: a build image installs them as the operating
+# system's packages, and pip must not bring copies of its own.
+
+[project.scripts]
+dyndeb-generate = "dyndeb.generate:main"
+dh_rosdep = "dyndeb.dh_rosdep:main"
+
+[tool.setuptools]
+packages = ["dyndeb"]

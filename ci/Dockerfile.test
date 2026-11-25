@@ -1,0 +1,24 @@
+# Copyright 2026 The ros2ci authors
+# SPDX-License-Identifier: Apache-2.0
+
+# The tests, defined so that they run the same way on any machine with a
+# container runtime:
+#
+#   docker build -f ci/Dockerfile.test -t dyndeb-test .
+#   docker run --rm dyndeb-test
+
+FROM docker.io/library/ubuntu:26.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-catkin-pkg \
+        python3-docutils \
+        python3-flake8 \
+        python3-pytest \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . /src
+CMD ["sh", "-c", "python3 -m flake8 --max-line-length 120 dyndeb test && python3 -m pytest -q test"]
