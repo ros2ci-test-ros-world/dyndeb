@@ -172,8 +172,16 @@ DEB_HOST_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 ROS_TEST_RESULTS_DIR ?= $(CURDIR)/.ros_test_results
 
 # The packages this one depends on are installed under @PREFIX@. Their
-# setup file puts them on the paths the build and the tests search.
-ROS_SETUP = if [ -f "@PREFIX@/setup.sh" ]; then . "@PREFIX@/setup.sh"; fi
+# setup file puts them on the paths the build and the tests search. That
+# file belongs to ros_workspace, and the few packages ros_workspace is
+# itself built from are built before it exists. For them the Python
+# modules under @PREFIX@ are put on the path directly, which is what
+# bloom's RPM macros do. bloom's Debian rules have no such case, and the
+# release repositories of those packages carry it as a patch.
+PYTHON3_VERSION = $(shell py3versions -d)
+ROS_PYTHON_DIR = @PREFIX@/lib/$(PYTHON3_VERSION)/site-packages
+ROS_PYTHONPATH = export PYTHONPATH="$(ROS_PYTHON_DIR)$${PYTHONPATH:+:$$PYTHONPATH}"
+ROS_SETUP = if [ -f "@PREFIX@/setup.sh" ]; then . "@PREFIX@/setup.sh"; else $(ROS_PYTHONPATH); fi
 '''
 
 _RULES_AMENT_PYTHON = '''

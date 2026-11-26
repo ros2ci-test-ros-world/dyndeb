@@ -197,6 +197,11 @@ def test_rules(tmp_path):
     assert '--prefix "/opt/ros/rolling"' in rules
     assert '--install-scripts "\\$$base/bin"' in rules
     assert 'export ROS_DISTRO=rolling\n' in rules
+    # Without ros_workspace's setup file, the modules under the prefix
+    # still have to be found.
+    assert 'ROS_PYTHON_DIR = /opt/ros/rolling/lib/$(PYTHON3_VERSION)/site-packages\n' in rules
+    assert 'ROS_PYTHONPATH = export PYTHONPATH="$(ROS_PYTHON_DIR)$${PYTHONPATH:+:$$PYTHONPATH}"\n' in rules
+    assert '; else $(ROS_PYTHONPATH); fi\n' in rules
     assert '\texecute_before_dh_gencontrol' not in rules
     assert 'execute_before_dh_gencontrol:\n\tdh_rosdep\n' in rules
     assert '@' not in rules.replace('$@', '')
