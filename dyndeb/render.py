@@ -200,11 +200,13 @@ override_dh_auto_build:
 \t$(ROS_SETUP) && dh_auto_build
 
 # The tests run the way colcon runs them: pytest, from the top of the
-# source tree. A failing test is recorded and does not stop the build.
+# source tree, with the package's metadata written there first. Without
+# it a test cannot find what the package registers about itself, such as
+# its entry points. A failing test is recorded and does not stop the build.
 override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 \tmkdir -p "$(ROS_TEST_RESULTS_DIR)"
-\t$(ROS_SETUP) && python3 -m pytest -p no:cacheprovider \\
+\t$(ROS_SETUP) && python3 setup.py -q egg_info && python3 -m pytest -p no:cacheprovider \\
 \t\t--junit-xml="$(ROS_TEST_RESULTS_DIR)/pytest.xml" \\
 \t\t-o junit_suite_name=@NAME@ \\
 \t\t|| echo "-- tests failed or could not run; the build goes on"

@@ -203,6 +203,7 @@ def test_rules(tmp_path):
     assert 'ROS_PYTHON_DIR = /opt/ros/rolling/lib/$(PYTHON3_VERSION)/site-packages\n' in rules
     assert 'ROS_PYTHONPATH = export PYTHONPATH="$(ROS_PYTHON_DIR)$${PYTHONPATH:+:$$PYTHONPATH}"\n' in rules
     assert '; else $(ROS_PYTHONPATH); fi\n' in rules
+    assert '&& python3 setup.py -q egg_info && python3 -m pytest ' in rules
     assert '\texecute_before_dh_gencontrol' not in rules
     assert 'execute_before_dh_gencontrol:\n\tdh_rosdep\n' in rules
     assert '@' not in rules.replace('$@', '')
