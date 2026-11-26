@@ -203,7 +203,9 @@ def test_rules(tmp_path):
     assert 'ROS_PYTHON_DIR = /opt/ros/rolling/lib/$(PYTHON3_VERSION)/site-packages\n' in rules
     assert 'ROS_PYTHONPATH = export PYTHONPATH="$(ROS_PYTHON_DIR)$${PYTHONPATH:+:$$PYTHONPATH}"\n' in rules
     assert '; else $(ROS_PYTHONPATH); fi\n' in rules
-    assert '&& python3 setup.py -q egg_info && python3 -m pytest ' in rules
+    assert '&& python3 setup.py -q egg_info && \\\n' in rules
+    assert ('\t\tPYTEST_ADDOPTS="-p no:cacheprovider --junit-xml=$(ROS_TEST_RESULTS_DIR)/pytest.xml '
+            '-o junit_suite_name=my_tool" \\\n\t\tpython3 -m pytest \\\n') in rules
     assert '\texecute_before_dh_gencontrol' not in rules
     assert 'execute_before_dh_gencontrol:\n\tdh_rosdep\n' in rules
     assert '@' not in rules.replace('$@', '')
@@ -220,6 +222,7 @@ def test_rules_for_ament_cmake(tmp_path):
             '\t\t$(BUILD_TESTING_ARG)\n') in rules
     assert 'ctest --output-on-failure \\\n' in rules
     assert '$(BUILD_DIR)/test_results' in rules
+    assert 'BUILD_DIR = $(CURDIR)/../.obj-ros-rolling-my-tool-$(DEB_HOST_GNU_TYPE)\n' in rules
     assert '/opt/ros/rolling/opt/my_tool/lib/\n' in rules
     assert 'execute_before_dh_gencontrol:\n\tdh_rosdep\n' in rules
     assert '@' not in rules.replace('$@', '')

@@ -203,12 +203,14 @@ override_dh_auto_build:
 # source tree, with the package's metadata written there first. Without
 # it a test cannot find what the package registers about itself, such as
 # its entry points. A failing test is recorded and does not stop the build.
+# pytest gets its options from the environment, not the command line: a
+# test that reads the command line must see only "pytest".
 override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 \tmkdir -p "$(ROS_TEST_RESULTS_DIR)"
-\t$(ROS_SETUP) && python3 setup.py -q egg_info && python3 -m pytest -p no:cacheprovider \\
-\t\t--junit-xml="$(ROS_TEST_RESULTS_DIR)/pytest.xml" \\
-\t\t-o junit_suite_name=@NAME@ \\
+\t$(ROS_SETUP) && python3 setup.py -q egg_info && \\
+\t\tPYTEST_ADDOPTS="-p no:cacheprovider --junit-xml=$(ROS_TEST_RESULTS_DIR)/pytest.xml -o junit_suite_name=@NAME@" \\
+\t\tpython3 -m pytest \\
 \t\t|| echo "-- tests failed or could not run; the build goes on"
 endif
 
@@ -251,7 +253,9 @@ _RULES_CMAKE = '''
 # For packages that install libraries into the multiarch directory.
 export DEB_HOST_MULTIARCH := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
-BUILD_DIR = .obj-$(DEB_HOST_GNU_TYPE)
+# Outside the source tree, as colcon builds: a test that looks over the
+# source, such as a linter, must not find the build in it.
+BUILD_DIR = $(CURDIR)/../.obj-@PACKAGE@-$(DEB_HOST_GNU_TYPE)
 
 ifneq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 BUILD_TESTING_ARG = -DBUILD_TESTING=OFF
