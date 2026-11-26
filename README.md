@@ -19,8 +19,9 @@ it runs `dpkg-buildpackage`. bloom already works this way for RPM packages
 
 - Debian needs `Build-Depends` before a build starts, so the build
   dependencies in `package.xml` are resolved through rosdep here and written
-  into `control`. Test dependencies are marked `<!nocheck>`, so a build that
-  does not run tests does not install them.
+  into `control`. What only the tests need is marked `<!nocheck>`, so a
+  build that does not run tests does not install it. That is the test
+  dependencies and the run-time dependencies: the tests run the package.
 - Install-time dependencies are not resolved here. `control` says
   `${ros:Depends}`.
 - It exits with 3 when a rosdep key has no package on this platform, and

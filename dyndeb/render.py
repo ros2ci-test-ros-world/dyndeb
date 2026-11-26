@@ -114,9 +114,11 @@ def _control(package, name, rosdistro, resolver, build_type):
     build = manifest.relations(manifest.build_dependencies(package), resolver)
     # Left out of a build that is told not to run tests, by the nocheck
     # build profile.
-    test = [entry + ' <!nocheck>'
-            for entry in manifest.relations(manifest.test_dependencies(package), resolver)
-            if entry not in build]
+    # A package's tests run the package, so what it needs to run has to
+    # be installed for them too.
+    for_tests = (manifest.relations(manifest.test_dependencies(package), resolver)
+                 + manifest.relations(manifest.run_dependencies(package), resolver))
+    test = [entry + ' <!nocheck>' for entry in sorted(set(for_tests)) if entry not in build]
     tools = ['debhelper-compat (= %d)' % DEBHELPER_COMPAT]
     if build_type == 'ament_python':
         tools += ['dh-python', 'python3-all', 'python3-setuptools']

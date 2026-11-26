@@ -132,11 +132,12 @@ def test_control(tmp_path):
     assert field(control, 'Package') == 'ros-rolling-my-tool'
     assert field(control, 'Maintainer') == '"A. B, Jr." <a.b@example.invalid>'
     assert field(control, 'Homepage') == 'https://example.invalid/my_tool'
-    # The tools first; a test dependency is left out of a build without
-    # tests, unless the build needs it anyway.
+    # The tools first. What only the tests need, which includes what the
+    # package needs to run, is left out of a build without tests.
     assert field(control, 'Build-Depends') == (
         'debhelper-compat (= 13), dh-python, python3-all, python3-setuptools, '
-        'libtwo-dev, libtwo1, python3-pytest <!nocheck>, ros-rolling-ros-workspace')
+        'libtwo-dev, libtwo1, python3-pytest <!nocheck>, ros-rolling-other-pkg <!nocheck>, '
+        'ros-rolling-ros-workspace')
     # Install-time dependencies are not decided here.
     assert field(control, 'Depends') == '${python3:Depends}, ${misc:Depends}, ${ros:Depends}'
     assert field(control, 'Conflicts') == 'ros-rolling-other-pkg'
