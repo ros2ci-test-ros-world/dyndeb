@@ -13,6 +13,9 @@ things differ on purpose:
 * the rules file runs the package's tests itself and leaves their results
   as JUnit XML files, and a failing test does not stop the build. Whoever
   runs the build reads the results and decides what a failure means.
+
+There is one set of rules for ``ament_python`` packages and one for the
+two CMake build types, ``ament_cmake`` and ``cmake``, as in bloom.
 """
 
 import configparser
@@ -55,9 +58,13 @@ def render(package, package_dir, rosdistro, os_version, revision, resolver, now=
     version = '%s-%s%s' % (package.version, revision, os_version)
     now = now or datetime.datetime.now(datetime.timezone.utc)
 
+    if build_type == 'ament_python':
+        rules = _rules_ament_python(package, prefix, rosdistro, package_dir)
+    else:
+        rules = _rules_cmake(package, prefix, rosdistro, build_type)
     return {
-        'control': _control(package, name, rosdistro, resolver),
-        'rules': _rules_ament_python(package, prefix, rosdistro, package_dir),
+        'control': _control(package, name, rosdistro, resolver, build_type),
+        'rules': rules,
         'changelog': _changelog(package, package_dir, name, version, os_version, now),
         'copyright': _copyright(package, package_dir),
         'source/format': '3.0 (quilt)\n',
@@ -103,14 +110,19 @@ def _homepage(package, rosdistro):
     return 'https://index.ros.org/p/%s/#%s' % (package.name, rosdistro)
 
 
-def _control(package, name, rosdistro, resolver):
+def _control(package, name, rosdistro, resolver, build_type):
     build = manifest.relations(manifest.build_dependencies(package), resolver)
     # Left out of a build that is told not to run tests, by the nocheck
     # build profile.
     test = [entry + ' <!nocheck>'
             for entry in manifest.relations(manifest.test_dependencies(package), resolver)
             if entry not in build]
-    tools = ['debhelper-compat (= %d)' % DEBHELPER_COMPAT, 'dh-python', 'python3-all', 'python3-setuptools']
+    tools = ['debhelper-compat (= %d)' % DEBHELPER_COMPAT]
+    if build_type == 'ament_python':
+        tools += ['dh-python', 'python3-all', 'python3-setuptools']
+        own_depends = '${python3:Depends}'
+    else:
+        own_depends = '${shlibs:Depends}'
     build_depends = tools + [entry for entry in sorted(set(build) | set(test)) if entry not in tools]
 
     lines = [
@@ -125,7 +137,7 @@ def _control(package, name, rosdistro, resolver):
         '',
         'Package: ' + name,
         'Architecture: any',
-        'Depends: ${python3:Depends}, ${misc:Depends}, ${ros:Depends}',
+        'Depends: %s, ${misc:Depends}, ${ros:Depends}' % own_depends,
     ]
     for field, dependencies in (('Conflicts', manifest.conflicts(package)),
                                 ('Replaces', manifest.replaces(package))):
@@ -219,6 +231,82 @@ def _rules_ament_python(package, prefix, rosdistro, package_dir):
                           ('@ROSDISTRO@', rosdistro),
                           ('@PACKAGE@', manifest.debian_name(package.name, rosdistro)),
                           ('@NAME@', package.name)):
+        text = text.replace(marker, value)
+    return text
+
+
+_RULES_CMAKE = '''
+# For packages that install libraries into the multiarch directory.
+export DEB_HOST_MULTIARCH := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+BUILD_DIR = .obj-$(DEB_HOST_GNU_TYPE)
+
+ifneq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+BUILD_TESTING_ARG = -DBUILD_TESTING=OFF
+endif
+
+%:
+\tdh $@ -v --buildsystem=cmake --builddirectory=$(BUILD_DIR)
+
+override_dh_auto_configure:
+\t$(ROS_SETUP) && dh_auto_configure -- \\
+\t\t-DCMAKE_INSTALL_PREFIX="@PREFIX@" \\@AMENT_PREFIX_PATH@
+\t\t-DCMAKE_PREFIX_PATH="@PREFIX@" \\
+\t\t$(BUILD_TESTING_ARG)
+
+override_dh_auto_build:
+\t$(ROS_SETUP) && dh_auto_build
+
+# The tests run the way colcon runs them: ctest, in the build directory.
+# A failing test is recorded and does not stop the build.
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+\tmkdir -p "$(ROS_TEST_RESULTS_DIR)"
+\t$(ROS_SETUP) && cd $(BUILD_DIR) && ctest --output-on-failure@CTEST_RESULTS@ \\
+\t\t|| echo "-- tests failed or could not run; the build goes on"@COLLECT_RESULTS@
+endif
+
+override_dh_auto_install:
+\t$(ROS_SETUP) && dh_auto_install
+
+override_dh_shlibdeps:
+\t$(ROS_SETUP) && dh_shlibdeps -l$(CURDIR)/debian/@PACKAGE@@PREFIX@/lib/:$(CURDIR)/debian/@PACKAGE@@PREFIX@/@EXTRA_LIB@
+
+execute_before_dh_gencontrol:
+\tdh_rosdep
+'''
+
+# A test of an ament_cmake package writes its own result file under
+# test_results in the build directory, with every test case in it. Those
+# are what colcon reports, so they are what is kept: one file per test,
+# named by its path.
+_COLLECT_AMENT_RESULTS = '''
+\tif [ -d $(BUILD_DIR)/test_results ]; then cd $(BUILD_DIR)/test_results && \\
+\t\tfind . -name '*.xml' | while read -r f; do \\
+\t\t\tcp "$$f" "$(ROS_TEST_RESULTS_DIR)/$$(echo "$$f" | sed 's|^\\./||; s|/|__|g')"; \\
+\t\tdone; fi'''
+
+
+def _rules_cmake(package, prefix, rosdistro, build_type):
+    if build_type == 'ament_cmake':
+        values = (
+            ('@AMENT_PREFIX_PATH@', '\n\t\t-DAMENT_PREFIX_PATH="@PREFIX@" \\'),
+            ('@CTEST_RESULTS@', ''),
+            ('@COLLECT_RESULTS@', _COLLECT_AMENT_RESULTS),
+            ('@EXTRA_LIB@', 'opt/%s/lib/' % package.name),
+        )
+    else:
+        # A plain CMake package has only what ctest itself knows.
+        values = (
+            ('@AMENT_PREFIX_PATH@', ''),
+            ('@CTEST_RESULTS@', ' --output-junit "$(ROS_TEST_RESULTS_DIR)/ctest.xml"'),
+            ('@COLLECT_RESULTS@', ''),
+            ('@EXTRA_LIB@', 'lib/${DEB_HOST_MULTIARCH}'),
+        )
+    text = _RULES_HEADER + _RULES_CMAKE
+    for marker, value in values + (('@PREFIX@', prefix),
+                                   ('@ROSDISTRO@', rosdistro),
+                                   ('@PACKAGE@', manifest.debian_name(package.name, rosdistro))):
         text = text.replace(marker, value)
     return text
 

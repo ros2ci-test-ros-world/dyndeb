@@ -155,7 +155,7 @@ def test_unresolved_build_dependency_stops_rendering(tmp_path):
 
 def test_unsupported_build_type(tmp_path):
     with pytest.raises(manifest.PackagingError, match='not supported'):
-        rendered(tmp_path, build_type='ament_cmake')
+        rendered(tmp_path, build_type='catkin')
 
 
 def test_bad_revision(tmp_path):
@@ -201,6 +201,36 @@ def test_rules(tmp_path):
     assert 'execute_before_dh_gencontrol:\n\tdh_rosdep\n' in rules
     assert '@' not in rules.replace('$@', '')
     assert render.executable('rules') and not render.executable('control')
+
+
+def test_rules_for_ament_cmake(tmp_path):
+    files = rendered(tmp_path, build_type='ament_cmake', extra='<build_depend>two</build_depend>')
+    rules = files['rules']
+    assert '\tdh $@ -v --buildsystem=cmake --builddirectory=$(BUILD_DIR)\n' in rules
+    assert ('\t\t-DCMAKE_INSTALL_PREFIX="/opt/ros/rolling" \\\n'
+            '\t\t-DAMENT_PREFIX_PATH="/opt/ros/rolling" \\\n'
+            '\t\t-DCMAKE_PREFIX_PATH="/opt/ros/rolling" \\\n'
+            '\t\t$(BUILD_TESTING_ARG)\n') in rules
+    assert 'ctest --output-on-failure \\\n' in rules
+    assert '$(BUILD_DIR)/test_results' in rules
+    assert '/opt/ros/rolling/opt/my_tool/lib/\n' in rules
+    assert 'execute_before_dh_gencontrol:\n\tdh_rosdep\n' in rules
+    assert '@' not in rules.replace('$@', '')
+    control = files['control']
+    # No Python tools for a CMake package, and its libraries' own
+    # dependencies instead of Python's.
+    assert field(control, 'Build-Depends') == (
+        'debhelper-compat (= 13), libtwo-dev, libtwo1, ros-rolling-ros-workspace')
+    assert field(control, 'Depends') == '${shlibs:Depends}, ${misc:Depends}, ${ros:Depends}'
+
+
+def test_rules_for_cmake(tmp_path):
+    rules = rendered(tmp_path, build_type='cmake')['rules']
+    assert 'AMENT_PREFIX_PATH' not in rules
+    assert 'ctest --output-on-failure --output-junit "$(ROS_TEST_RESULTS_DIR)/ctest.xml" \\\n' in rules
+    assert '$(BUILD_DIR)/test_results' not in rules
+    assert '/opt/ros/rolling/lib/${DEB_HOST_MULTIARCH}\n' in rules
+    assert '@' not in rules.replace('$@', '')
 
 
 def test_rules_leave_install_scripts_to_setup_cfg(tmp_path):

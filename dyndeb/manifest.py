@@ -8,7 +8,7 @@ import os
 from catkin_pkg.package import parse_package
 
 # The build types there is a debian/rules for.
-SUPPORTED_BUILD_TYPES = ('ament_python',)
+SUPPORTED_BUILD_TYPES = ('ament_cmake', 'ament_python', 'cmake')
 
 # Every ROS 2 package depends on ros_workspace, which sets up the
 # environment under /opt/ros. These are the packages ros_workspace itself

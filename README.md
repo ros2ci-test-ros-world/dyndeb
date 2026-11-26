@@ -51,14 +51,16 @@ the same prefix (`/opt/ros/<distro>`), the same version
 (`<version>-<revision><release code name>`) and the same build flags.
 
 Tests are the difference. The generated `rules` runs the package's tests the
-way colcon does and writes the results as JUnit XML files into
-`$ROS_TEST_RESULTS_DIR` (by default `.ros_test_results` in the source tree).
+way colcon does (pytest for `ament_python`, ctest for the CMake build types)
+and leaves the results as JUnit XML files in `$ROS_TEST_RESULTS_DIR` (by
+default `.ros_test_results` in the source tree). For an `ament_cmake`
+package these are the result files its tests write themselves.
 A failing test does not stop the build; whoever runs the build reads the
 results and decides. With `nocheck` in `DEB_BUILD_OPTIONS` no tests run.
 
 ## Limits
 
-- **Build types.** Only `ament_python` so far.
+- **Build types.** `ament_python`, `ament_cmake` and `cmake`.
 - **One binary package** per source package.
 - **Not done:** group dependencies, the extra type-support build dependencies
   bloom gives interface packages, and rosdep keys to skip.
